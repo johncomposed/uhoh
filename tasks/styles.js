@@ -6,8 +6,7 @@ module.exports = function(gulp, g, c) {
         .pipe(g.sourcemaps.init())
         .pipe(g.sass(c.scss))
         .pipe(g.sourcemaps.write())
-        .pipe(g.log())
-        .pipe(gulp.dest(c.dest));
+        .pipe(g.dest());
     };
 
   return {

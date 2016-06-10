@@ -32,11 +32,13 @@ c.layout = argv.layout || c.layout || exists(`${p.join(src, '_layout.jade')}`);
 
 const watch = (ext) => lazy().pipe(g.watch, `${c.src}/**/*.${ext}`);
 g.watchr = (ext) => g.ifElse(c.watch, watch(ext));
-
-g.log = () => g.tap((file) => {
-  let relative = p.relative(c.src, file.path);
-  g.util.log('Built: ', g.util.colors.magenta(relative));
-});
+g.dest = lazy()
+  .pipe(() => g.filter(['**/[^_]*.*']))
+  .pipe(() => g.tap((file) => {
+    let relative = p.relative(c.src, file.path);
+    g.util.log('Built: ', g.util.colors.magenta(relative));
+  }))
+  .pipe(gulp.dest, c.dest);
 
 const templates = require('./tasks/templates')(gulp, g, c);
 const styles = require('./tasks/styles')(gulp, g, c);

@@ -13,18 +13,16 @@ module.exports = function(gulp, g, c) {
         .pipe(g.frontMatter())
         .pipe(g.markdownIt(c.markdown))
         .pipe(layout())
-        .pipe(g.log())
-        .pipe(gulp.dest(c.dest));
+        .pipe(g.dest());
     };
 
   function jade() {
-    return gulp.src(`${c.src}/**/[!_]*.jade`)
+    return gulp.src(`${c.src}/**/*.jade`)
       .pipe(g.watchr('jade'))
       .pipe(g.frontMatter())
       .pipe(g.jade(c.jade))
       .pipe(layout())
-      .pipe(g.log())
-      .pipe(gulp.dest(c.dest));
+      .pipe(g.dest());
   };
 
   return {
