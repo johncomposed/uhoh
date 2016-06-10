@@ -4,6 +4,9 @@
   "description": "A simple static site generator using gulp",
   "preferGlobal": true,
   "main": "index.js",
+  "bin": {
+    "uhoh": "./bin/uhoh"
+  },
   "author": "John Williams",
   "license": "MIT",
   "dependencies": {
