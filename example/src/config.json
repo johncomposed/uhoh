@@ -1,0 +1,8 @@
+
+{
+"watch": true,
+"serve": true,
+"jade": {
+  "prettify": true
+}
+}
