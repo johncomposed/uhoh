@@ -1,67 +1,84 @@
 'use strict'; 
 
 const gulp = require('gulp');
-const p = require('path');
+const path = require('path');
 const fs = require('fs');
 const g = require('gulp-load-plugins')();
 const lazy = require('lazypipe');
 
 const argv = require('yargs')
     .usage('Usage: $0 [options] <src> <dest>')
-    .boolean('w')
-    .alias('w', 'watch')
-    .boolean('s')
-    .alias('s', 'serve')
-    .nargs('c', 1)
-    .alias('c', 'config')
-    .nargs('l', 1)
-    .alias('l', 'layout')
+    .options({
+      's': {
+        alias: 'server',
+        describe: 'Your node server file, provide __static__ to start a static server.',
+        type: 'string'
+      },
+      'w': {
+        alias: "watch",
+        type: "boolean",
+        describe: "Watch the throne"
+      },
+      'p': {
+        alias: "port",
+        type: "number",
+        describe: "Optional port"
+      }
+    })
     .help('h')
     .alias('h', 'help')
     .argv;
 
-const src = p.resolve(process.cwd(), argv._[0]) || process.cwd();
-const exists = (file) => fs.existsSync(file) ? file : undefined;
-const c = exists(p.join(src, argv.config)) ? require(p.join(src, argv.config)) : {};
 
-c.src = src;
-c.dest = argv._[1] || c.dest || p.join(c.src, '..', 'dest');
-c.watch = argv.watch || c.watch;
-c.serve = argv.serve || c.serve;
-c.layout = argv.layout || c.layout || exists(p.join(src, '_layout.jade'));
+const src = path.resolve(process.cwd(), argv._[0]) || process.cwd();
+const c = {
+  src,
+  dest: argv._[1] || path.join(src, '..', 'dest'),
+  port: argv.port || 8000,
+  watch: argv.watch,
+  server: argv.server,
+  filter: ['**/[^_]*.*'],
+  layout: fs.existsSync(path.join(src, '_layout.jade')) ? path.join(src, '_layout.jade') : undefined
+};
 
+c.customServer = c.server && c.server !== '__static__' ? path.join(process.cwd(), c.server) : false;
+
+
+// Extra gulp plugins
 const watch = (ext) => lazy().pipe(g.watch, `${c.src}/**/*.${ext}`);
 g.watchr = (ext) => g.ifElse(c.watch, watch(ext));
-g.layoutr = () => g.layout((file) => {
-  let config = file.frontMatter || {};
-  config.layout = config.layout || c.layout;
 
-  return config;
-});
 g.dest = lazy()
-  .pipe(() => g.filter(['**/[^_]*.*']))
+  .pipe(() => g.filter(c.filter))
   .pipe(() => g.tap((file) => {
-    let relative = p.relative(c.src, file.path);
+    let relative = path.relative(c.src, file.path);
     g.util.log('Built: ', g.util.colors.magenta(relative));
   }))
   .pipe(gulp.dest, c.dest);
 
-const markdown = require('./tasks/markdown')(gulp, g, c);
+g.lazy = lazy;
+
+// Building tasks;
 const templates = require('./tasks/templates')(gulp, g, c);
 const styles = require('./tasks/styles')(gulp, g, c);
 const scripts = require('./tasks/scripts')(gulp, g, c);
 
 gulp
   .task('clean', () => require('del')([`${c.dest}/*`]))
-  .task('markdown', markdown.markdown) 
   .task('jade', templates.jade)
-  .task('watch-jade', () => gulp.src(`${c.src}/**/*.jade`).pipe())
   .task('scss', styles.scss)
   .task('js', scripts.js)
-  .task('compile', ['js', 'jade', 'markdown', 'scss'])
+  .task('markdown', templates.markdown)
+  .task('other', templates.other)
+  .task('compile', ['js', 'markdown', 'jade', 'scss', 'other'])
   .task('server', () => (
      gulp.src(c.dest)
-      .pipe(g.ifElse(c.serve, () => g.webserver(c.webserver || { livereload: true })))
+      .pipe(g.ifElse(c.customServer, () => g.nodemon({ script: c.customServer})))
+      .pipe(g.ifElse(c.server, () => g.webserver({ 
+        livereload: true,
+        port: c.port,
+        proxies: c.customServer ? [{source: '/', target: `http://localhost:${c.port + 1}`}] : []
+      })))
   ))
   .task('default', ['compile', 'server']);
 
@@ -70,9 +87,8 @@ gulp
   console.log('-------------');
   console.log('Source: ', g.util.colors.green(c.src));
   console.log('Destination: ', g.util.colors.green(c.dest));
-  console.log('Config file: ', g.util.colors.green(argv.config));
   console.log('Watch: ', g.util.colors.green(c.watch));
-  console.log('Serve: ', g.util.colors.green(c.serve));
+  console.log('Server: ', g.util.colors.green(c.server));
   console.log('-------------');
 
   gulp.start('clean').once('task_stop', () => {
