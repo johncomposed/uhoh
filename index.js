@@ -20,18 +20,24 @@ const argv = require('yargs')
     .alias('h', 'help')
     .argv;
 
-const src = argv._[0] || process.cwd();
+const src = p.resolve(process.cwd(), argv._[0]) || process.cwd();
 const exists = (file) => fs.existsSync(file) ? file : undefined;
-const c = exists(argv.config) ? require('./' + argv.config) : {};
+const c = exists(p.join(src, argv.config)) ? require(p.join(src, argv.config)) : {};
 
 c.src = src;
 c.dest = argv._[1] || c.dest || p.join(c.src, '..', 'dest');
 c.watch = argv.watch || c.watch;
 c.serve = argv.serve || c.serve;
-c.layout = argv.layout || c.layout || exists(`${p.join(src, '_layout.jade')}`);
+c.layout = argv.layout || c.layout || exists(p.join(src, '_layout.jade'));
 
 const watch = (ext) => lazy().pipe(g.watch, `${c.src}/**/*.${ext}`);
 g.watchr = (ext) => g.ifElse(c.watch, watch(ext));
+g.layoutr = () => g.layout((file) => {
+  let config = file.frontMatter || {};
+  config.layout = config.layout || c.layout;
+
+  return config;
+});
 g.dest = lazy()
   .pipe(() => g.filter(['**/[^_]*.*']))
   .pipe(() => g.tap((file) => {
@@ -40,13 +46,14 @@ g.dest = lazy()
   }))
   .pipe(gulp.dest, c.dest);
 
+const markdown = require('./tasks/markdown')(gulp, g, c);
 const templates = require('./tasks/templates')(gulp, g, c);
 const styles = require('./tasks/styles')(gulp, g, c);
 const scripts = require('./tasks/scripts')(gulp, g, c);
 
 gulp
   .task('clean', () => require('del')([`${c.dest}/*`]))
-  .task('markdown', templates.markdown) 
+  .task('markdown', markdown.markdown) 
   .task('jade', templates.jade)
   .task('watch-jade', () => gulp.src(`${c.src}/**/*.jade`).pipe())
   .task('scss', styles.scss)
