@@ -11,7 +11,12 @@ const argv = require('yargs')
     .options({
       's': {
         alias: 'server',
-        describe: 'Your node server file, provide __static__ to start a static server.',
+        describe: 'A livereload server, if a custom server is set it proxies all traffic to localhost:port + 1',
+        type: 'boolean'
+      },
+      'c': {
+        alias: 'custom',
+        describe: 'Your node server file (optional)',
         type: 'string'
       },
       'w': {
@@ -29,7 +34,6 @@ const argv = require('yargs')
     .alias('h', 'help')
     .argv;
 
-
 const src = path.resolve(process.cwd(), argv._[0]) || process.cwd();
 const c = {
   src,
@@ -37,12 +41,10 @@ const c = {
   port: argv.port || 8000,
   watch: argv.watch,
   server: argv.server,
+  custom: argv.custom ? argv.custom : false,
   filter: ['**/[^_]*.*'],
   layout: fs.existsSync(path.join(src, '_layout.jade')) ? path.join(src, '_layout.jade') : undefined
 };
-
-c.customServer = c.server && c.server !== '__static__' ? path.join(process.cwd(), c.server) : false;
-
 
 // Extra gulp plugins
 const watch = (ext) => lazy().pipe(g.watch, `${c.src}/**/*.${ext}`);
@@ -71,15 +73,20 @@ gulp
   .task('markdown', templates.markdown)
   .task('other', templates.other)
   .task('compile', ['js', 'markdown', 'jade', 'scss', 'other'])
-  .task('server', () => (
-     gulp.src(c.dest)
-      .pipe(g.ifElse(c.customServer, () => g.nodemon({ script: c.customServer})))
+  .task('server', () => {
+    if (c.custom) {
+      g.nodemon({ 
+        script: c.custom,
+        watch: [c.custom]
+      });
+    }
+    return gulp.src(c.dest)
       .pipe(g.ifElse(c.server, () => g.webserver({ 
         livereload: true,
         port: c.port,
-        proxies: c.customServer ? [{source: '/', target: `http://localhost:${c.port + 1}`}] : []
-      })))
-  ))
+        proxies: c.custom ? [{source: '/', target: `http://localhost:${c.port + 1}`}] : []
+      })));
+  })
   .task('default', ['compile', 'server']);
 
 
@@ -89,6 +96,7 @@ gulp
   console.log('Destination: ', g.util.colors.green(c.dest));
   console.log('Watch: ', g.util.colors.green(c.watch));
   console.log('Server: ', g.util.colors.green(c.server));
+  console.log('Custom: ', g.util.colors.green(c.custom));
   console.log('-------------');
 
   gulp.start('clean').once('task_stop', () => {
